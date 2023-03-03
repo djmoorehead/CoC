@@ -51,7 +51,7 @@
 
   --:LIST_END|
   --X|
-
+ 
   --:ReentryRange|
       --Rbyindex|[*S:character_id];[&Rgroup];[&reentryval]
       -->ParseWeaponRanges|[*R:[&Rrange]];[*R:[&Rskill]]
