@@ -1,0 +1,534 @@
+!script {{
+  --#debug|0
+  --:FORMATTING DEFAULTS|
+  --#title|Firearm Menu
+  --#emotestate|1
+  --#sourcetoken|@{selected|token_id}
+  --#nominmaxhighlight|1
+  --#titlecardbackgroundimage|url(https://s3.amazonaws.com/files.d20.io/images/324665765/SbvvIwCAOouKyd823YZzrg/max.jpg);background-size: cover;background-repeat: no-repeat;
+  --&evenRowBGColor|#222222
+  --&oddRowBGColor|#222222
+  --#evenRowBackground|[&evenRowBGColor]
+  --#oddRowBackground|[&oddRowBGColor]
+  --#evenRowFontColor|#E5D27C
+  --#oddRowFontColor|#E5D27C
+  --#buttonFontSize|18px
+  --#buttonBackground|#222222
+  --#buttonTextColor|#E5D27C
+  --#buttonPadding|1px
+  --&delimit|&&
+  --&QB|? --&QB|+{ --&QE|}
+  --&TB|& --&TB|+# --&TB|+64 --&TB|+; --&TB|+{
+  --&targetStr|[&TB]target|Select Target|token_id}
+  --#reentrant|Firearms [*S:t-id]
+  --=auraState|1
+          --&oldAura2Radius|[*S:t-aura2_radius]
+          --&oldAura2Color|[*S:t-aura2_color]
+          --&oldAura2Square|[*S:t-aura2_square]
+          --&oldAura1Radius|[*S:t-aura1_radius]
+          --&oldAura1Color|[*S:t-aura1_color]
+          --&oldAura1Square|[*S:t-aura1_square]
+
+  --:PAGE DETAILS|
+  --#activepage|[*C:playerpageid]
+  --=pageGridSize|[*P:snapping_increment]
+  --=pageScaleNumber|[*P:scale_number]
+
+  --:GO THROUGH ALL REPEATING WEAPON FIELDS| only display firearms
+  --?[*S:sheet_npc] -eq 0|=attackerIsNPC;0|=attackerIsNPC;1
+  -->MapRepeatingAttacks|[$attackerIsNPC]
+  --Rfirst|[*S:character_id];[&Rgroup]
+  --?"[*R:[&Rname]]" -eq "NoRepeatingAttributeLoaded"|LIST_END
+  --=Ridx|0
+  --:DisplayWeapons|
+  --~rangeNumeric|string;onlynumbers;[*R:[&Rrange]]
+  --?"X[&rangeNumeric]X" -eq "XX"|SkipWeapon
+  -->PrintWeaponMenu|[*R:[&Rname]];[$Ridx]
+  --:SkipWeapon|
+  --=Ridx|[$Ridx]+1
+  --Rnext|
+  --?"[*R:[&Rname]]" -ne "NoRepeatingAttributeLoaded"|DisplayWeapons
+
+  --:LIST_END|
+  --X|
+
+  --:ReentryRange|
+      --Rbyindex|[*S:character_id];[&Rgroup];[&reentryval]
+      -->ParseWeaponRanges|[*R:[&Rrange]];[*R:[&Rskill]]
+      --=longRangeInGridUnits|[$longRange] / [$pageScaleNumber]
+      --#hideCard|1
+      -->ToggleAuras|[*S:t-id]
+      --?[$auraState] -lt 1|[
+          --@forselected|smartaoe _aoeType|cone,16 _radius|[$longRangeInGridUnits.Raw]u _origin|nearest, face _aoeColor|#ff000000 _gridColor|#ff000000 _outlineOnly|1
+      --]|
+  --X|
+
+  --:ReentryAttack|
+  --#hideCard|0
+  -->ParseReentryAttackVals|[&reentryval]
+  --#targettoken|[&targetID]
+  --/|**********************************************************************
+  --:WEAPON-SPECIFIC SETTINGS|
+  --/|**********************************************************************
+  --Rbyindex|[*S:character_id];[&Rgroup];[&Ridx]
+
+  --#title|[*R:[&Rname]] Attack
+  --?[$attackerIsNPC] -eq 1|[
+      --=skill|[*R:[&Rskill]]
+      --#leftsub|Skill: [$skill] (NPC)
+  --]|[
+      --&skillName|[*R:[&Rskill]]
+      --=skill|[*S:[&skillName]]
+      --#leftsub|Skill: [*R:[&Rskill]]
+  --]|
+  --~skillNameLCase|string;tolowercase;[&skillName]
+  --~weaponNameLCase|string;tolowercase;[*R:[&Rname]] 
+
+  -->ParseWeaponRanges|[*R:[&Rrange]];[*R:[&Rskill]]
+  --#rightsub|Base Range: [*R:[&Rrange]]
+  -->ParseWeaponDamage|[*R:[&Rdamage]]
+
+      --:If allowImpale is set to 1, an Extreme success will deal max damage plus a roll of damage|
+  --?[*R:[&Rimpale]] -eq "on"|=allowImpale;1|=allowImpale;0
+      --:If allowPointBlankBonus is set to 1, shooter will get a bonus die|
+  --=allowPointBlankBonus|1
+  --?"[&skillNameLCase]" -inc "rifle"|=allowPointBlankBonus;0
+  --?"[&weaponNameLCase]" -inc "rifle"|=allowPointBlankBonus;0
+  --?"[&weaponNameLCase]" -inc "carbine"|=allowPointBlankBonus;0
+  --?"[&weaponNameLCase]" -inc "enfield"|=allowPointBlankBonus;0
+  --?"[&weaponNameLCase]" -inc "elephant"|=allowPointBlankBonus;0
+  --?"[&weaponNameLCase]" -inc "shotgun" -and [$allowImpale] -eq 0|=allowPointBlankBonus;1
+      --:If subtractArmorForEachDie is set to 1, armor value is subtracted from each damage die| if set to 0, armor value is only subtracted once regardless of number of dice
+  --?"[*R:[&Rname]]" -inc "hotgun" -and [$allowImpale] -eq 0|=subtractArmorForEachDie;1|=subtractArmorForEachDie;0
+  --/|**********************************************************************
+
+  --:RELEVANT ATTRIBUTES|
+  --=targetDodgeSkill|[*T:dodge]
+
+  --:FIND TARGET DISTANCE| dist rounded to nearest tenth
+  --~distPx|euclideanpixel;[*S:t-id];[*T:t-id]
+  --=distYd|[$distPx] / 70 / [$pageGridSize] * [$pageScaleNumber] *10 {ROUND} /10
+  --?[$distYd] -gt [$longRange]|>OutOfRange
+  -->DetermineRange|
+  --+|[c][b]Dist. to Target: [$distYd] yds [#ffffff]([&rangeStr] Range)[/#][/b][/c]
+
+  --:TARGET AND ENVIRONMENTAL ARMOR, POINT BLANK RANGE BONUS|
+  --?"[*T:sheet_npc]" -eq "on"|[
+      --~targetArmor|string;onlynumbers;[*T:armor]
+  --]|[
+      --~targetArmor|string;onlynumbers;[*T:armor_value]
+  --]|
+  --=targetArmor|[&targetArmor]
+
+  --=totalArmor|[$environArmor] + [$targetArmor]
+  --?[$allowPointBlankBonus] -eq 1 -and "[&rangeStr]" -eq "Point Blank"|=numBonusDice;[$numBonusDice] + 1
+
+  --:DETERMINE DIFFICULTY|
+  --?[$distYd] -gt [$medRange] -and [$distYd] -le [$longRange]|=difficultyNum;3
+  --?[$distYd] -gt [$shortRange] -and [$distYd] -le [$medRange]|=difficultyNum;2
+  --?[$distYd] -le [$shortRange]|=difficultyNum;1
+  --?"[&defenseType]" -eq "DiveForCover"|>CheckDiveForCover
+  --=difficultyNum|[$difficultyNum] + [$dodgeIncreasedDifficulty]
+
+  --?[$difficultyNum] -eq 1|[
+      --&difficulty|Normal
+      --=DC|[$skill]
+  --]|
+  --?[$difficultyNum] -eq 2|[
+      --&difficulty|Hard
+      --=DC|[$skill] / 2 {FLOOR}
+  --]|
+  --?[$difficultyNum] -gt 2|[
+      --&difficulty|Extreme
+      --=DC|[$skill] / 5 {FLOOR}
+  --]|
+
+  --:CALCULATE MODIFIERS| 
+  --=modDice|[$numPenaltyDice] - [$numBonusDice]
+  --?[$modDice] -eq 0|[
+      --/No Bonus or Penalty|
+      --&modifierStr|
+  --]|
+  --?[$modDice] -gt 0|[
+      --/Overall Penalty|
+      --&modKeepType|kh1
+      --&modifierStr|(Penalty)
+  --]|
+  --?[$modDice] -lt 0|[
+      --/Overall Bonus|
+      --&modKeepType|kl1
+      --&modifierStr|(Bonus)
+  --]|
+  --=modDice|[$modDice] {ABS}
+
+  --+|[f22][c][b][#ffffff][&difficulty] Difficulty[/#][/b][/c][/f]
+  --+|[c][b]Penalty Dice: [$numPenaltyDice]  Bonus Dice: [$numBonusDice][/b][/c]
+  --+|[c][b]Net Bonus/Penalty Dice [$modDice] [&modifierStr][/b][/c]
+
+  --:MAKE ATTACK ROLL AND PRINT RESULT|
+  -->PrintSeparatorLine|
+  -->MakeAndPrintAttackRoll|#222222
+  -->DetermineSuccess|[$totalAttRoll];[$skill];[$DC]
+  --=attackSuccessLevelVal|[$successLevelVal]
+  -->DetermineDamage|[&successLevel]
+
+  --:POSSIBLY ROLL DODGE AND DETERMINE OUTCOME|
+  -->PrintSeparatorLine|
+  --?[$attackSuccessLevelVal] -lt 0|[
+      --+|[f18][c][b][#ffffff]Target was missed![/#][/b][/c][/f]
+      --X|
+  --]|
+  --?"[&defenseType]" -eq "None"|CompareSuccessLevelsDone
+  --?"[&defenseType]" -eq "DiveForCover"|CompareSuccessLevelsDone
+  -->MakeAndPrintDodgeRoll|#222222
+  -->DetermineSuccess|[$dodgeRoll];[$targetDodgeSkill];[$targetDodgeSkill]
+  --=dodgeSuccessLevelVal|[$successLevelVal]
+
+  --:COMPARE SUCCESS LEVELS|
+  -->PrintSeparatorLine|
+  --?[$attackSuccessLevelVal] -ge 3 -and [$allowImpale] -eq 1|&ImpaleStr;(Impale)|&ImpaleStr;
+  --?"[$attackSuccessLevelVal]" -gt [$dodgeSuccessLevelVal]|[
+      --+|[f18][c][b][#ffffff]Target is Hit! [&ImpaleStr][/#][/b][/c][/f]
+      --+|[f22][c][b]Damage: [$damage] - [$damageReduction] = [$totalDamage][/b][/c][/f]
+      --+|[c][rbutton]Apply Damage::ReentryApplyDamage;[$totalDamage][/rbutton][/c]
+  --]|[
+      --+|[f18][c][b][#ffffff]Target was missed![/#][/b][/c][/f]
+  --]|
+  --X|
+  --:CompareSuccessLevelsDone|
+  --?"[$attackSuccessLevelVal]" -gt 0|[
+      --+|[f18][c][b][#ffffff]Target is Hit! [&ImpaleStr][/#][/b][/c][/f]
+      --+|[f22][c][b]Damage: [$damage] - [$damageReduction] = [$totalDamage][/b][/c][/f]
+      --+|[c][rbutton]Apply Damage::ReentryApplyDamage;[$totalDamage][/rbutton][/c]
+  --]|[
+      --+|[f18][c][b][#ffffff]Target was missed![/#][/b][/c][/f]
+  --]|
+
+  --X| End macro
+
+  --:FUNCTIONS|
+  --:MapRepeatingAttacks| attackerIsNPC
+      --?[%1%] -eq 1|[
+          --:npc_mode|
+          --&Rgroup|repeating_npc-combat-attacks
+          --&Rname|attack_name
+          --&Rskill|attack_value
+          --&Rdamage|attack_damage
+          --&RdamageBonus|attack_damage_bonus
+          --&Rimpale|attack_impale
+          --&Rrange|attack_range
+          --&Rmalfunction|attack_malfunction
+      --]|[
+          --:pc_mode|
+          --&Rgroup|repeating_weapons
+          --&Rname|weapon_name
+          --&Rskill|weapon_skill
+          --&Rdamage|weapon_damage
+          --&RdamageBonus|weapon_damage_bonus
+          --&Rimpale|weapon_impale_bonus
+          --&Rrange|weapon_range
+          --&Rmalfunction|weapon_malfunction
+      --]|
+  --<|
+
+  --:PrintWeaponMenu| repeating weapon name, repeating weapon index
+        --&query1Str|[&QB]Choose target defense?|None,None|Dive for Cover,DiveForCover|Allow Dodge & Compare,CompareDodge[&QE]
+        --&query2Str|[&QB]How many penalty dice?|0[&QE]
+        --&query3Str|[&QB]How many bonus dice?|0[&QE]
+        --&query4Str|[&QB]How much Armor from Environment?|0[&QE]
+      --+[#ffffff][%1%][/#]|[rbutton]Rng::ReentryRange;[%2%][/rbutton] [rbutton]Fire::ReentryAttack;[&targetStr]|[%2%]|[&query1Str]|[&query2Str]|[&query3Str]|[&query4Str][/rbutton]
+  --<|
+
+  --:ToggleAuras| selected tokenID
+      --=auraState|[$auraState] * -1
+      --?[$auraState] -lt 1|[
+          --&newAura2Radius|[$shortRange.Raw]
+          --&newAura2Color|#00ff00
+          --&newAura2Square|
+          --&newAura1Radius|[$medRange.Raw]
+          --&newAura1Color|#ff9900
+          --&newAura1Square|
+      --]|[
+          --&newAura2Radius|[&oldAura2Radius]
+          --&newAura2Color|[&oldAura2Color]
+          --&newAura2Square|[&oldAura2Square]
+          --&newAura1Radius|[&oldAura1Radius]
+          --&newAura1Color|[&oldAura1Color]
+          --&newAura1Square|[&oldAura1Square]
+      --]|
+      --!t:[%1%]|aura2_radius:[&newAura2Radius]
+      --!t:[%1%]|aura2_color:[&newAura2Color]
+      --!t:[%1%]|aura2_square:[&newAura2Square]
+      --!t:[%1%]|aura1_radius:[&newAura1Radius]
+      --!t:[%1%]|aura1_color:[&newAura1Color]
+      --!t:[%1%]|aura1_square:[&newAura1Square]
+  --<|
+
+  --:ParseReentryAttackVals| reentry val string made of 6 pipe-delimited values
+      --~|array;fromstring;reentryArr;|;[%1%]
+      --&targetID|[@reentryArr(0)]
+      --&Ridx|[@reentryArr(1)]
+      --?"[@reentryArr(2)]" -eq "None"|&defenseType;None
+      --?"[@reentryArr(2)]" -eq "CompareDodge"|&defenseType;CompareDodge
+      --?"[@reentryArr(2)]" -eq "DiveForCover"|&defenseType;DiveForCover
+      --=numPenaltyDice|[@reentryArr(3)]
+      --=numBonusDice|[@reentryArr(4)]
+      --=environArmor|[@reentryArr(5)]
+  --<|
+
+  --:ParseWeaponRanges| repeating weapon item range field, repeating weapon item skill field
+      --=shortRange|-999
+      --~|array;fromstring;rangeArr;/;[%1%]
+      --?[@rangeArr(0)] -ne "ArrayError"|[
+          --~shortRangeNumeric|string;onlynumbers;[@rangeArr(0)]
+          --=shortRange|[&shortRangeNumeric]
+      --]|
+      --?[@rangeArr(1)] -ne "ArrayError"|[
+          --~medRangeNumeric|string;onlynumbers;[@rangeArr(1)]
+          --=medRange|[&medRangeNumeric]
+      --]|[
+          --=medRange|[$shortRange]*2
+      --]|
+      --?[@rangeArr(2)] -ne "ArrayError"|[
+          --~longRangeNumeric|string;onlynumbers;[@rangeArr(2)]
+          --=longRange|[&longRangeNumeric]
+      --]|[
+          --=longRange|[$shortRange]*4
+      --]|
+      --=pointBlankRange|[*S:dexterity] / 5 {FLOOR}
+  --<|
+
+  --:ParseWeaponDamage| repeating weapon item damage field
+      --&shortDamage|0
+      --~|array;fromstring;damageArr;/;[%1%]
+      --~shortDamage|string;trim;[@damageArr(0)]
+      --~shortDamage|string;tolowercase;[&shortDamage]
+      --~shortMaxDamageStr|string;replace;d;m;[&shortDamage]
+      --=shortMaxDamageRoll|[&shortMaxDamageStr]
+      --&shortMaxDamage|[$shortMaxDamageRoll]
+      --~shortNumDice|string;before;d;[&shortDamage]
+      --?[@damageArr(1)] -ne "ArrayError"|[
+          --~medDamage|string;trim;[@damageArr(1)]
+          --~medDamage|string;tolowercase;[&medDamage]
+          --~medMaxDamageStr|string;replace;d;m;[&medDamage]
+          --=medMaxDamageRoll|[&medMaxDamageStr]
+          --&medMaxDamage|[$medMaxDamageRoll]
+          --~medNumDice|string;before;d;[&medDamage]
+      --]|[
+          --&medDamage|[&shortDamage]
+          --&medNumDice|[&shortNumDice]
+          --&medMaxDamage|[&shortMaxDamage]
+      --]|
+      --?[@damageArr(2)] -ne "ArrayError"|[
+          --~longDamage|string;trim;[@damageArr(2)]
+          --~longNumDice|string;before;d;[&longDamage]
+          --~longDamage|string;tolowercase;[&longDamage]
+          --~longMaxDamageStr|string;replace;d;m;[&longDamage]
+          --=longMaxDamageRoll|[&longMaxDamageStr]
+          --&longMaxDamage|[$longMaxDamageRoll]
+      --]|[
+          --&longDamage|[&medDamage]
+          --&longNumDice|[&medNumDice]
+          --&longMaxDamage|[&medMaxDamage]
+      --]|
+  --<|
+
+  --:OutOfRange|      
+      --+|[c][b]Dist. to Target: [$distYd] yds[/b][/c]
+      --+|[f22][c][b][#ffffff]Out of Range![/#][/b][/c][/f]
+      --X| End macro
+  --<|
+
+ --:DetermineRange|
+      --?[$allowPointBlankBonus] -eq 0|PointBlankDone
+      --?[$distYd] -le [$pointBlankRange] -and [$distYd] -le [$longRange]|[
+          --&rangeStr|Point Blank
+          --^DetermineRangeDone|
+      --]|
+      --:PointBlankDone|
+
+      --?[$distYd] -le [$shortRange]|[
+      --&rangeStr|Short
+      --]|
+      --?[$distYd] -gt [$shortRange] -and [$distYd] -le [$medRange]|[
+          --&rangeStr|Medium
+      --]|
+      --?[$distYd] -gt [$medRange] -and [$distYd] -le [$longRange]|[
+          --&rangeStr|Long
+      --]|
+      --:DetermineRangeDone|
+  --<|
+
+  --:CheckDiveForCover|
+      -->PrintSeparatorLine|
+      -->MakeAndPrintDodgeRoll|#222222;(Diving for Cover)
+      -->DetermineSuccess|[$dodgeRoll];[$targetDodgeSkill];[$targetDodgeSkill]
+      --=dodgeSuccessLevelVal|[$successLevelVal]
+      --?[$dodgeSuccessLevelVal] -gt 0|[
+          --+|[c](Dodge has Increased Difficulty)[/c]
+          --=dodgeIncreasedDifficulty|1
+      --]|[
+          --=dodgeIncreasedDifficulty|0
+      --]|
+      -->PrintSeparatorLine|
+  --<|
+
+  --:PrintBanner| text, background color, font color, and font size
+      --#evenRowBackground|[%2%]
+      --#oddRowBackground|[%2%]
+      --+|[f[%4%]][#[%3%]][c][b][%1%][/b][/c][/#][/f]
+      --#evenRowBackground|[&evenRowBGColor]
+      --#oddRowBackground|[&oddRowBGColor]
+  --<|
+
+  --:PrintSeparatorLine|
+      --+|[c]__________________________________[/c]
+  --<|
+
+  --:MakeAndPrintAttackRoll| backgroundcolor
+      --&lbrack|[   
+      --?[$modDice] -eq 0|[
+          --=totalAttRoll|1d100
+      --]|[
+         --=numTens|[$modDice] + 1
+          --=totalAttRoll|[$numTens.Raw]d10[&modKeepType]-1*10 + 1d10-1
+      --]|
+
+      --?[$totalAttRoll] -lt 1|=totalAttRoll;1[&lbrack][$totalAttRoll]]
+      --#evenRowBackground|[%1%]
+      --#oddRowBackground|[%1%]
+      --+|[c][b][f22]Attack[/f][/b][/c]
+      --+|[f22][c][$totalAttRoll]vs.[$DC][/c][/f]
+      --#evenRowBackground|[&evenRowBGColor]
+      --#oddRowBackground|[&oddRowBGColor]
+  --<|
+
+  --:MakeAndPrintDodgeRoll| backgroundcolor, divingForCover
+      --=dodgeRoll|1d100
+      --#evenRowBackground|[%1%]
+      --#oddRowBackground|[%1%]
+      --+|[c][b][f22]Dodge [%2%][/f][/b][/c]
+      --+|[f22][c][$dodgeRoll] vs. [$targetDodgeSkill][/c][/f]
+      --#evenRowBackground|[&evenRowBGColor]
+      --#oddRowBackground|[&oddRowBGColor]
+  --<|
+
+  --:DetermineSuccess| totalRoll, skill, DC
+      --=normalSuccessVal|[%2%]
+      --=hardSuccessVal|[%2%] / 2 {FLOOR}
+      --=extremeSuccessVal|[%2%] / 5 {FLOOR}
+      --=criticalSuccessVal|1
+      --?[%2%] -lt 50|[
+          --=criticalFailureDC|96
+      --]|[
+          --=criticalFailureDC|100
+      --]|[
+      --?[%1%] -le [$criticalSuccessVal]|[
+          --&successLevel|CRITICAL SUCCESS
+          --=successLevelVal|4
+          -->PrintBanner|CRITICAL SUCCESS;076d09;ffffff;22
+          --^DetermineSuccessDone|
+      --]|
+      --?[%1%] -le [$extremeSuccessVal] -and [%1%] -le [%3%]|[
+          --&successLevel|EXTREME SUCCESS
+          --=successLevelVal|3
+          -->PrintBanner|EXTREME SUCCESS;076d09;ffffff;22
+          --^DetermineSuccessDone|
+      --]|
+      --?[%1%] -le [$hardSuccessVal] -and [%1%] -le [%3%]|[
+          --&successLevel|HARD SUCCESS
+          --=successLevelVal|2
+          -->PrintBanner|HARD SUCCESS;076d09;ffffff;22
+          --^DetermineSuccessDone|
+      --]|
+      --?[%1%] -le [$normalSuccessVal] -and [%1%] -le [%3%]|[
+          --&successLevel|SUCCESS
+          --=successLevelVal|1
+          -->PrintBanner|SUCCESS;076d09;ffffff;22
+          --^DetermineSuccessDone|
+      --]|
+      --?[%1%] -ge [$criticalFailureDC]|[
+          --&successLevel|CRITICAL FAILURE
+          --=successLevelVal|-2
+          -->PrintBanner|CRITICAL FAILURE;7a0707;ffffff;22
+          --^DetermineSuccessDone|
+      --]|
+      --?[%1%] -gt [%3%]|[
+          --&successLevel|FAILURE
+          --=successLevelVal|-1
+          -->PrintBanner|FAILURE;7a0707;ffffff;22
+          --^DetermineSuccessDone|
+      --]|
+      --:DetermineSuccessDone| return to main block
+  --<|
+
+  --:DetermineDamage| successLevel
+      --?"[%1%]" -eq "EXTREME SUCCESS" -and [$allowImpale] -eq 1|Impale
+      --?"[%1%]" -eq "EXTREME SUCCESS" -and [$allowImpale] -eq 0|Normal
+      --?"[%1%]" -eq "CRITICAL SUCCESS"|Critical
+
+      --:Normal| *************Normal Damage*************
+      --?"[&rangeStr]" -eq "Short" -or "[&rangeStr]" -eq "Point Blank"|[
+          --=damage|[&shortDamage]
+          --=numDamageDice|[&shortNumDice]
+      --]|
+      --?"[&rangeStr]" -eq "Medium"|[
+          --=damage|[&medDamage]
+          --=numDamageDice|[&medNumDice]
+      --]|
+      --?"[&rangeStr]" -eq "Long"|[
+          --=damage|[&longDamage]
+          --=numDamageDice|[&longNumDice]
+      --]| 
+      --^DamageDone| skip to DamageDone
+
+      --:Impale| *************Impale Damage*************
+      --?"[&rangeStr]" -eq "Short" -or "[&rangeStr]" -eq "Point Blank"|[
+          --=damage|[&shortDamage] + [&shortMaxDamage]
+          --=numDamageDice|[&shortNumDice] * 2
+      --]|
+      --?"[&rangeStr]" -eq "Medium"|[
+          --=damage|[&medDamage] + [&medMaxDamage]
+          --=numDamageDice|[&medNumDice] * 2
+      --]|
+      --?"[&rangeStr]" -eq "Long"|[
+          --=damage|[&longDamage] + [&longMaxDamage]
+          --=numDamageDice|[&longNumDice] * 2
+      --]| 
+      --^DamageDone| skip to DamageDone
+
+      --:Critical| *************Critical Damage************* currently same as Impale
+      --?"[&rangeStr]" -eq "Short" -or "[&rangeStr]" -eq "Point Blank"|[
+          --=damage|[&shortDamage] + [&shortMaxDamage]
+          --=numDamageDice|[&shortNumDice] * 2
+      --]|
+      --?"[&rangeStr]" -eq "Medium"|[
+          --=damage|[&medDamage] + [&medMaxDamage]
+          --=numDamageDice|[&medNumDice] * 2
+      --]|
+      --?"[&rangeStr]" -eq "Long"|[
+          --=damage|[&longDamage] + [&longMaxDamage]
+          --=numDamageDice|[&longNumDice] * 2
+      --]| 
+
+      --:DamageDone| now check for armor
+      --?[$subtractArmorForEachDie] -eq 1|[
+          --=damageReduction|[$totalArmor]*[$numDamageDice]
+      --]|[
+          --=damageReduction|[$totalArmor]
+      --]|
+      --=totalDamage|[$damage] - [$damageReduction]
+      --?[$totalDamage] -lt 0|=totalDamage;0
+  --<|
+  
+  --:ReentryApplyDamage|
+      --=newHP|[*T:t-bar1_value] - [&reentryval]
+      --?[$newHP] -lt 0|=newHP;0
+      --=damageApplied|[*T:t-bar1_value] - [$newHP]
+      --!t:[*T:t-id]|bar1_value:[$newHP]
+      --#title|[$damageApplied] Damage Applied
+      --#leftsub|
+      --#rightsub|
+      --X|
+  --<|
+}}
